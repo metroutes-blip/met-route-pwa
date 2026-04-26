@@ -1,0 +1,451 @@
+/* ── Reset & Variables ─────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:         #16213e;
+  --bg2:        #0f3460;
+  --bg3:        #1a2640;
+  --accent:     #e94560;
+  --blue:       #2980b9;
+  --green:      #27ae60;
+  --text:       #eaeaea;
+  --dim:        #8a8f9e;
+  --border:     rgba(255,255,255,0.1);
+  --header-h:   52px;
+  --status-h:   30px;
+  --toggle-h:   40px;
+  --panel-h:    44%;
+  --detail-h:   220px;
+  --radius:     12px;
+  --shadow:     0 4px 16px rgba(0,0,0,0.5);
+}
+
+html, body { height: 100%; overflow: hidden; background: var(--bg); }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── App Shell ─────────────────────────────────────────────────────────────── */
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  height: 100dvh;
+}
+
+/* ── Header ────────────────────────────────────────────────────────────────── */
+#header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: var(--header-h);
+  padding: 0 10px;
+  background: var(--bg2);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+  flex-shrink: 0;
+  z-index: 200;
+}
+
+#header h1 {
+  font-size: 17px;
+  font-weight: 600;
+  flex: 1;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 0 8px;
+}
+
+.btn-icon {
+  width: 38px;
+  height: 38px;
+  min-width: 38px;
+  border: none;
+  background: rgba(255,255,255,0.08);
+  color: var(--text);
+  border-radius: 8px;
+  font-size: 20px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn-icon:active { background: rgba(255,255,255,0.18); }
+
+/* ── Status Bar ────────────────────────────────────────────────────────────── */
+#status-bar {
+  height: var(--status-h);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  padding: 0 16px;
+  flex-shrink: 0;
+  transition: opacity 0.3s;
+}
+#status-bar.info    { background: rgba(41,182,246,0.15);  color: #29b6f6; }
+#status-bar.success { background: rgba(39,174,96,0.15);   color: #2ecc71; }
+#status-bar.error   { background: rgba(233,69,96,0.15);   color: var(--accent); }
+#status-bar.warning { background: rgba(241,196,15,0.15);  color: #f1c40f; }
+
+/* ── Screens ───────────────────────────────────────────────────────────────── */
+.screen {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.screen.hidden { display: none !important; }
+
+/* ── Route List Screen ─────────────────────────────────────────────────────── */
+#route-list-container {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+}
+
+#route-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.route-card {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.1s;
+  user-select: none;
+}
+.route-card:active { transform: scale(0.98); }
+
+.route-card-num {
+  font-size: 11px;
+  color: var(--dim);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+.route-card-office {
+  font-size: 16px;
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+.route-card-stats {
+  display: flex;
+  gap: 18px;
+  font-size: 13px;
+  color: var(--dim);
+  margin-bottom: 10px;
+}
+.route-card-progress {
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.route-card-progress-fill {
+  height: 100%;
+  background: var(--green);
+  border-radius: 2px;
+  transition: width 0.4s;
+}
+
+/* ── Empty State ───────────────────────────────────────────────────────────── */
+.empty-state {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  text-align: center;
+  padding: 40px 32px;
+}
+.empty-icon { font-size: 48px; margin-bottom: 4px; }
+.empty-state p { font-size: 15px; line-height: 1.5; }
+.empty-state p.dim { color: var(--dim); font-size: 14px; }
+
+.btn-primary {
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: 10px;
+  padding: 12px 28px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: 8px;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn-primary:active { opacity: 0.85; }
+
+/* ── Route Screen ──────────────────────────────────────────────────────────── */
+#screen-route {
+  position: relative;
+}
+
+/* Map */
+#map {
+  flex: 1;
+  min-height: 0;
+  background: #0d1b2a;
+  transition: flex 0.25s ease;
+}
+
+/* View toggle pill */
+#view-toggle {
+  position: absolute;
+  bottom: calc(var(--panel-h) + 10px);
+  right: 12px;
+  display: flex;
+  background: var(--bg2);
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: var(--shadow);
+  z-index: 500;
+  transition: bottom 0.25s ease;
+}
+#view-toggle button {
+  border: none;
+  background: transparent;
+  color: var(--dim);
+  padding: 7px 14px;
+  font-size: 13px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+#view-toggle button.active {
+  background: var(--accent);
+  color: white;
+  font-weight: 600;
+}
+
+/* Stop panel */
+#stop-panel {
+  height: var(--panel-h);
+  min-height: 120px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  border-top: 1px solid var(--border);
+  transition: height 0.25s ease;
+  flex-shrink: 0;
+}
+
+#stop-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+
+/* Stop items */
+.stop-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border);
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.1s;
+}
+.stop-item:active,
+.stop-item.selected { background: rgba(233,69,96,0.08); }
+.stop-item.done     { opacity: 0.45; }
+
+.stop-badge {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--bg2);
+  border: 2px solid #3a5480;
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.stop-item.done .stop-badge {
+  background: var(--green);
+  border-color: var(--green);
+}
+
+.stop-text { flex: 1; min-width: 0; }
+.stop-name {
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.stop-addr {
+  font-size: 12px;
+  color: var(--dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.stop-check {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  background: transparent;
+  color: var(--dim);
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+.stop-item.done .stop-check {
+  border-color: var(--green);
+  color: var(--green);
+}
+
+/* ── Stop Detail Bottom Sheet ──────────────────────────────────────────────── */
+#stop-detail {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--bg3);
+  border-top: 2px solid var(--accent);
+  border-radius: 16px 16px 0 0;
+  padding: 20px 20px 28px;
+  box-shadow: 0 -4px 24px rgba(0,0,0,0.6);
+  z-index: 600;
+  transform: translateY(0);
+  transition: transform 0.25s ease;
+}
+#stop-detail.hidden { transform: translateY(110%); }
+
+#btn-close-detail {
+  position: absolute;
+  top: 14px;
+  right: 16px;
+  background: rgba(255,255,255,0.08);
+  border: none;
+  color: var(--dim);
+  font-size: 16px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#detail-order {
+  font-size: 11px;
+  color: var(--dim);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+#detail-name {
+  font-size: 17px;
+  font-weight: 700;
+  margin-bottom: 4px;
+  padding-right: 40px;
+}
+#detail-address {
+  font-size: 14px;
+  color: var(--dim);
+  margin-bottom: 4px;
+}
+#detail-meta {
+  font-size: 13px;
+  color: var(--dim);
+  margin-bottom: 16px;
+}
+
+#detail-actions {
+  display: flex;
+  gap: 10px;
+}
+.btn-nav, .btn-done {
+  flex: 1;
+  border: none;
+  border-radius: 10px;
+  padding: 13px 0;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn-nav  { background: var(--blue);   color: white; }
+.btn-done { background: var(--green);  color: white; }
+.btn-done.undone { background: #444;   color: var(--dim); }
+.btn-nav:active, .btn-done:active { opacity: 0.85; }
+
+/* ── Leaflet Overrides ─────────────────────────────────────────────────────── */
+.leaflet-container { background: #0d1b2a; }
+.leaflet-control-zoom a { background: var(--bg2) !important; color: var(--text) !important; border-color: var(--border) !important; }
+
+/* Custom numbered marker */
+.stop-marker {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--bg2);
+  border: 2.5px solid var(--accent);
+  color: white;
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.6);
+  transition: transform 0.15s;
+}
+.stop-marker.done     { background: var(--green); border-color: #2ecc71; }
+.stop-marker.selected { background: var(--accent); border-color: white; transform: scale(1.25); z-index: 9999; }
+
+/* GPS location dot */
+.loc-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #29b6f6;
+  border: 3px solid white;
+  box-shadow: 0 0 10px rgba(41,182,246,0.7);
+}
+
+/* ── Scrollbar ─────────────────────────────────────────────────────────────── */
+::-webkit-scrollbar       { width: 3px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+/* ── Version Bar ───────────────────────────────────────────────────────────── */
+#version-bar {
+  text-align: center;
+  font-size: 11px;
+  color: var(--dim);
+  padding: 8px 0 10px;
+  flex-shrink: 0;
+  letter-spacing: 0.3px;
+}
+
+/* ── Utility ───────────────────────────────────────────────────────────────── */
+.hidden { display: none !important; }
