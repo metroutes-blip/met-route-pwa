@@ -94,6 +94,32 @@ body {
 #status-bar.error   { background: rgba(233,69,96,0.15);   color: var(--accent); }
 #status-bar.warning { background: rgba(241,196,15,0.15);  color: #f1c40f; }
 
+/* ── Corrections Bar ───────────────────────────────────────────────────────── */
+#corrections-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 14px;
+  height: 38px;
+  background: #7d3c00;
+  color: #f0a500;
+  font-size: 13px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+#btn-send-corrections {
+  background: #f0a500;
+  color: #1a0a00;
+  border: none;
+  border-radius: 6px;
+  padding: 5px 14px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+#btn-send-corrections:active { opacity: 0.85; }
+
 /* ── Screens ───────────────────────────────────────────────────────────────── */
 .screen {
   flex: 1;
@@ -287,16 +313,9 @@ body {
 }
 
 .stop-text { flex: 1; min-width: 0; }
-.stop-name {
-  font-size: 14px;
-  font-weight: 600;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
 .stop-addr {
-  font-size: 12px;
-  color: var(--dim);
+  font-size: 14px;
+  color: var(--text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -377,14 +396,33 @@ body {
 #detail-meta {
   font-size: 13px;
   color: var(--dim);
-  margin-bottom: 16px;
+  margin-bottom: 8px;
+}
+
+#detail-meter-list {
+  margin-bottom: 14px;
+}
+
+.meter-row {
+  font-size: 13px;
+  color: var(--dim);
+  padding: 3px 0;
+  border-bottom: 1px solid var(--border);
+}
+.meter-row:last-child { border-bottom: none; }
+
+.meter-hint {
+  font-size: 11px;
+  color: var(--dim);
+  font-style: italic;
+  margin-top: 6px;
 }
 
 #detail-actions {
   display: flex;
   gap: 10px;
 }
-.btn-nav, .btn-done {
+.btn-nav, .btn-pin {
   flex: 1;
   border: none;
   border-radius: 10px;
@@ -394,33 +432,41 @@ body {
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
-.btn-nav  { background: var(--blue);   color: white; }
-.btn-done { background: var(--green);  color: white; }
-.btn-done.undone { background: #444;   color: var(--dim); }
-.btn-nav:active, .btn-done:active { opacity: 0.85; }
+.btn-nav  { background: var(--blue);  color: white; }
+.btn-pin  { background: #e67e22;      color: white; }
+.btn-pin:disabled { opacity: 0.6; cursor: default; }
+.btn-nav:active, .btn-pin:active { opacity: 0.85; }
 
 /* ── Leaflet Overrides ─────────────────────────────────────────────────────── */
-.leaflet-container { background: #0d1b2a; }
+.leaflet-container { background: #e8e8e8; }
 .leaflet-control-zoom a { background: var(--bg2) !important; color: var(--text) !important; border-color: var(--border) !important; }
 
-/* Custom numbered marker */
-.stop-marker {
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  background: var(--bg2);
-  border: 2.5px solid var(--accent);
-  color: white;
-  font-size: 11px;
-  font-weight: 700;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.6);
-  transition: transform 0.15s;
+/* Single-meter dot — Leaflet sets width/height via inline style from iconSize */
+.met-dot {
+  border-radius: 50% !important;
+  background: #e94560 !important;
+  border: 2px solid white !important;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.5) !important;
 }
-.stop-marker.done     { background: var(--green); border-color: #2ecc71; }
-.stop-marker.selected { background: var(--accent); border-color: white; transform: scale(1.25); z-index: 9999; }
+
+/* Multi-meter numbered circle */
+.met-multi {
+  border-radius: 50% !important;
+  background: #c0392b !important;
+  border: 2px solid white !important;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.5) !important;
+  color: white !important;
+  font-size: 11px !important;
+  font-weight: bold !important;
+  font-family: Arial, Helvetica, sans-serif !important;
+  text-align: center !important;
+  line-height: 26px !important;
+}
+
+/* Shared state modifiers */
+.met-done               { background: #27ae60 !important; border-color: #2ecc71 !important; }
+.met-selected.met-dot   { border-color: #1a3a5c !important; transform: scale(1.4); }
+.met-selected.met-multi { outline: 2px solid #1a3a5c !important; }
 
 /* GPS location dot */
 .loc-dot {

@@ -23,6 +23,10 @@
     </header>
 
     <div id="status-bar" class="hidden" role="status"></div>
+    <div id="corrections-bar" class="hidden">
+      <span id="corrections-count"></span>
+      <button id="btn-send-corrections">Send All</button>
+    </div>
 
     <!-- Screen: Route List -->
     <div id="screen-routes" class="screen active">
@@ -58,9 +62,10 @@
         <h2 id="detail-name"></h2>
         <div id="detail-address"></div>
         <div id="detail-meta"></div>
+        <div id="detail-meter-list"></div>
         <div id="detail-actions">
           <button id="btn-navigate" class="btn-nav">Navigate</button>
-          <button id="btn-mark-done" class="btn-done">Mark Done</button>
+          <button id="btn-pin-location" class="btn-pin">Pin Location</button>
         </div>
       </div>
     </div>

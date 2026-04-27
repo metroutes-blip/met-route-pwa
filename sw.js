@@ -1,6 +1,6 @@
 // ── Service Worker — MET Route Viewer ────────────────────────────────────────
-const APP_CACHE  = 'met-routes-app-v1';
-const TILE_CACHE = 'met-routes-tiles-v1';
+const APP_CACHE  = 'met-routes-app-v7';
+const TILE_CACHE = 'met-routes-tiles-v2';
 
 const APP_SHELL = [
   './',
