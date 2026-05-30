@@ -246,38 +246,33 @@ body {
   transition: flex 0.25s ease;
 }
 
-/* View toggle pill */
-#view-toggle {
+/* Locate (center-on-me) button */
+.map-fab {
   position: absolute;
-  bottom: calc(var(--panel-h) + 10px);
+  top: 12px;
   right: 12px;
-  display: flex;
+  width: 42px;
+  height: 42px;
+  border: none;
+  border-radius: 50%;
   background: var(--bg2);
-  border-radius: 8px;
-  overflow: hidden;
+  color: var(--text);
   box-shadow: var(--shadow);
   z-index: 500;
-  transition: bottom 0.25s ease;
-}
-#view-toggle button {
-  border: none;
-  background: transparent;
-  color: var(--dim);
-  padding: 7px 14px;
-  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s;
 }
-#view-toggle button.active {
-  background: var(--accent);
-  color: white;
-  font-weight: 600;
-}
+.map-fab:active { background: var(--accent); }
+.map-fab.locating svg { animation: fab-spin 0.9s linear infinite; }
+@keyframes fab-spin { to { transform: rotate(360deg); } }
 
 /* Stop panel */
 #stop-panel {
   height: var(--panel-h);
-  min-height: 120px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -285,6 +280,53 @@ body {
   border-top: 1px solid var(--border);
   transition: height 0.25s ease;
   flex-shrink: 0;
+}
+#screen-route.panel-collapsed #stop-panel { height: 40px; }
+
+/* Panel header — tap to minimize/expand */
+#stop-panel-header {
+  position: relative;
+  height: 40px;
+  flex-shrink: 0;
+  width: 100%;
+  border: none;
+  background: var(--bg3);
+  color: var(--text);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+#stop-panel-header .grabber {
+  position: absolute;
+  top: 7px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 36px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--dim);
+  opacity: 0.5;
+}
+#stop-panel-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--dim);
+  margin-top: 4px;
+}
+#panel-chevron {
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%) translateY(2px);
+  color: var(--dim);
+  font-size: 14px;
+  transition: transform 0.25s ease;
+}
+#screen-route.panel-collapsed #panel-chevron {
+  transform: translateY(-50%) translateY(2px) rotate(180deg);
 }
 
 #stop-list {

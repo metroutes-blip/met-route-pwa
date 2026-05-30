@@ -1,5 +1,5 @@
 // ── Version ───────────────────────────────────────────────────────────────────
-const VERSION = '1.5.5';
+const VERSION = '1.6.0';
 
 // ── Config ────────────────────────────────────────────────────────────────────
 // Set this to the ID of the public GitHub Gist created by the Route Management
@@ -19,6 +19,7 @@ let routes = [];        // Array<{routeNum, office, stops[]}>
 let activeRoute = null;
 let markers = [];        // L.Marker[] for current route
 let locationMarker = null;
+let lastKnownPos = null;   // {lat, lon} of most recent GPS fix
 let watchId = null;
 let selectedStop = null;
 let selectedStopGroup = null;  // Array<stop> when a multi-meter marker is tapped
@@ -412,8 +413,8 @@ function closeRoute() {
   document.getElementById('btn-back').classList.add('hidden');
   document.getElementById('header-title').textContent = selectedWorkerName || 'MET Routes';
 
-  // Reset split
-  setMapMode(false);
+  // Reset list panel to expanded for next time
+  setPanelCollapsed(false);
   renderRouteList();
 }
 
@@ -500,6 +501,10 @@ function makeMarkerIcon(count, done, selected) {
 function renderStopList(sorted, done) {
   const list = document.getElementById('stop-list');
   list.innerHTML = '';
+
+  const doneCount = sorted.filter(s => done.has(s.readOrder)).length;
+  document.getElementById('stop-panel-title').textContent =
+    `Stops · ${doneCount}/${sorted.length} done`;
 
   for (const stop of sorted) {
     const isDone = done.has(stop.readOrder);
@@ -895,63 +900,22 @@ function sendAllCorrections() {
   setTimeout(clearCorrections, 1000);
 }
 
-// ── View Toggle (Map / List) ──────────────────────────────────────────────────
-function setMapMode(expanded) {
-  mapExpanded = expanded;
-  const mapEl = document.getElementById('map');
-  const panel = document.getElementById('stop-panel');
-  const toggle = document.getElementById('view-toggle');
-  const btnMap = document.getElementById('btn-map-view');
-  const btnList = document.getElementById('btn-list-view');
-
-  if (expanded) {
-    // Full map, minimal panel
-    mapEl.style.flex = '1';
-    panel.style.height = '0';
-    toggle.style.bottom = '10px';
-  } else {
-    // Split
-    mapEl.style.flex = '1';
-    panel.style.height = 'var(--panel-h)';
-    toggle.style.bottom = 'calc(var(--panel-h) + 10px)';
-  }
-
-  btnMap.classList.toggle('active', expanded || true); // map always "active" in split
-  btnList.classList.toggle('active', false);
-
-  if (expanded) {
-    btnMap.classList.add('active');
-    btnList.classList.remove('active');
-  }
-
+// ── List Panel Minimize / Expand ──────────────────────────────────────────────
+function setPanelCollapsed(collapsed) {
+  const screen = document.getElementById('screen-route');
+  screen.classList.toggle('panel-collapsed', collapsed);
+  mapExpanded = collapsed;
   setTimeout(() => map?.invalidateSize(), 260);
 }
 
-function initViewToggle() {
-  document.getElementById('btn-map-view').addEventListener('click', () => {
-    const mapEl = document.getElementById('map');
-    const panel = document.getElementById('stop-panel');
-    const toggle = document.getElementById('view-toggle');
-    mapEl.style.flex = '1';
-    panel.style.height = '0';
-    toggle.style.bottom = '10px';
-    document.getElementById('btn-map-view').classList.add('active');
-    document.getElementById('btn-list-view').classList.remove('active');
-    setTimeout(() => map?.invalidateSize(), 260);
-  });
+function togglePanel() {
+  const screen = document.getElementById('screen-route');
+  setPanelCollapsed(!screen.classList.contains('panel-collapsed'));
+}
 
-  document.getElementById('btn-list-view').addEventListener('click', () => {
-    const mapEl = document.getElementById('map');
-    const panel = document.getElementById('stop-panel');
-    const toggle = document.getElementById('view-toggle');
-    mapEl.style.flex = '0';
-    panel.style.height = '100%';
-    toggle.style.bottom = 'auto';
-    toggle.style.top = '10px';
-    document.getElementById('btn-list-view').classList.add('active');
-    document.getElementById('btn-map-view').classList.remove('active');
-    setTimeout(() => map?.invalidateSize(), 260);
-  });
+function initRouteControls() {
+  document.getElementById('stop-panel-header').addEventListener('click', togglePanel);
+  document.getElementById('btn-locate').addEventListener('click', locateUser);
 }
 
 // ── GPS Location ──────────────────────────────────────────────────────────────
@@ -970,6 +934,7 @@ function stopLocationWatch() {
 }
 
 function updateLocation(lat, lon) {
+  lastKnownPos = { lat, lon };
   if (!map) return;
   const icon = L.divIcon({
     className: '',
@@ -981,6 +946,36 @@ function updateLocation(lat, lon) {
   } else {
     locationMarker.setLatLng([lat, lon]);
   }
+}
+
+// Center the map on the worker's location; request a fresh fix if we have none yet.
+function locateUser() {
+  if (lastKnownPos) {
+    updateLocation(lastKnownPos.lat, lastKnownPos.lon);
+    map.setView([lastKnownPos.lat, lastKnownPos.lon], Math.max(map.getZoom(), 16));
+    return;
+  }
+  if (!navigator.geolocation) {
+    showStatus('GPS not available on this device.', 'error');
+    return;
+  }
+  const btn = document.getElementById('btn-locate');
+  btn.classList.add('locating');
+  showStatus('Finding your location…', 'info', 0);
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      btn.classList.remove('locating');
+      document.getElementById('status-bar').classList.add('hidden');
+      updateLocation(pos.coords.latitude, pos.coords.longitude);
+      map.setView([pos.coords.latitude, pos.coords.longitude], 16);
+      if (watchId == null) startLocationWatch();
+    },
+    () => {
+      btn.classList.remove('locating');
+      showStatus('Could not get a GPS fix. Try again outdoors.', 'error', 5000);
+    },
+    { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
+  );
 }
 
 // ── Navigation ────────────────────────────────────────────────────────────────
@@ -1051,7 +1046,7 @@ async function init() {
     showNameScreen();
   });
 
-  initViewToggle();
+  initRouteControls();
   initPinKeypad();
   initSettings();
 
