@@ -19,6 +19,7 @@
     <header id="header">
       <button id="btn-back" class="btn-icon hidden" aria-label="Back">&#8592;</button>
       <h1 id="header-title">MET Routes</h1>
+      <button id="btn-logout" class="btn-logout hidden" aria-label="Log out">Log Out</button>
       <button id="btn-sync" class="btn-icon" aria-label="Sync">&#8635;</button>
     </header>
 
@@ -28,8 +29,19 @@
       <button id="btn-send-corrections">Send All</button>
     </div>
 
+    <!-- Screen: Name Selection -->
+    <div id="screen-name" class="screen hidden">
+      <div id="name-container">
+        <div id="name-logo">&#128100;</div>
+        <h2>Who are you?</h2>
+        <p id="name-subtitle">Select your name to see your routes</p>
+        <div id="name-list"></div>
+      </div>
+      <div id="name-version">MET Route Viewer <span class="version-num"></span></div>
+    </div>
+
     <!-- Screen: Route List -->
-    <div id="screen-routes" class="screen active">
+    <div id="screen-routes" class="screen hidden">
       <div id="route-list-container">
         <div id="route-list"></div>
         <div id="no-routes" class="empty-state hidden">
@@ -39,7 +51,7 @@
           <button id="btn-sync-empty" class="btn-primary">Sync Now</button>
         </div>
       </div>
-      <div id="version-bar">MET Route Viewer <span id="version-num"></span></div>
+      <div id="version-bar">MET Route Viewer <span id="version-num" class="version-num"></span> &nbsp;<button id="btn-settings" title="Sync settings">&#9881;</button></div>
     </div>
 
     <!-- Screen: Route Map + Stop List -->
@@ -69,6 +81,56 @@
         </div>
       </div>
     </div>
+
+  <!-- Sync settings overlay -->
+  <div id="settings-overlay" class="hidden">
+    <div id="settings-sheet">
+      <button id="settings-close" aria-label="Close">&#10005;</button>
+      <h2>Sync Settings</h2>
+      <p class="settings-desc">
+        Paste the Gist sync token from your dispatcher. Pinned locations will then
+        update automatically. The token is stored on this device only — it is never
+        shared or sent anywhere except GitHub.
+      </p>
+      <input id="settings-token" type="password" autocomplete="off"
+             autocapitalize="off" spellcheck="false" placeholder="ghp_…">
+      <div id="settings-status"></div>
+      <div class="settings-actions">
+        <button id="settings-clear" class="settings-btn-sec">Remove</button>
+        <button id="settings-test" class="settings-btn-sec">Test</button>
+        <button id="settings-save" class="settings-btn-pri">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PIN overlay (slides up over route list) -->
+  <div id="pin-overlay" class="hidden">
+    <div id="pin-sheet">
+      <button id="pin-cancel" aria-label="Cancel">&#10005;</button>
+      <div id="pin-route-label"></div>
+      <div id="pin-dots">
+        <span class="pin-dot" id="pin-dot-0"></span>
+        <span class="pin-dot" id="pin-dot-1"></span>
+        <span class="pin-dot" id="pin-dot-2"></span>
+        <span class="pin-dot" id="pin-dot-3"></span>
+      </div>
+      <div id="pin-error" class="hidden">Incorrect PIN — try again</div>
+      <div id="pin-keypad">
+        <button class="pin-key" data-val="1">1</button>
+        <button class="pin-key" data-val="2">2</button>
+        <button class="pin-key" data-val="3">3</button>
+        <button class="pin-key" data-val="4">4</button>
+        <button class="pin-key" data-val="5">5</button>
+        <button class="pin-key" data-val="6">6</button>
+        <button class="pin-key" data-val="7">7</button>
+        <button class="pin-key" data-val="8">8</button>
+        <button class="pin-key" data-val="9">9</button>
+        <button class="pin-key pin-key-empty"></button>
+        <button class="pin-key" data-val="0">0</button>
+        <button class="pin-key pin-key-del" id="pin-del">&#9003;</button>
+      </div>
+    </div>
+  </div>
 
   </div>
 

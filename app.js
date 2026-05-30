@@ -1,5 +1,5 @@
 // ── Version ───────────────────────────────────────────────────────────────────
-const VERSION = '1.2.9';
+const VERSION = '1.5.4';
 
 // ── Config ────────────────────────────────────────────────────────────────────
 // Set this to the ID of the public GitHub Gist created by the Route Management
@@ -12,6 +12,7 @@ const GIST_URL = `https://api.github.com/gists/${GIST_ID}`;
 const DISPATCHER_EMAIL = 'michaelborneman@gmail.com';
 
 // ── State ─────────────────────────────────────────────────────────────────────
+let gistToken = null;    // worker-entered GitHub token (gist scope), stored in IDB on this device only
 let db = null;
 let map = null;
 let routes = [];        // Array<{routeNum, office, stops[]}>
@@ -112,6 +113,128 @@ function updateCorrectionsBadge() {
   }
 }
 
+// ── Worker Name Selection ─────────────────────────────────────────────────────
+let selectedWorkerName = null;
+
+async function loadWorkerName() {
+  selectedWorkerName = await idbGet('meta', 'workerName');
+}
+
+async function saveWorkerName(name) {
+  selectedWorkerName = name;
+  await idbPut('meta', name, 'workerName');
+}
+
+async function clearWorkerName() {
+  selectedWorkerName = null;
+  const tx = db.transaction('meta', 'readwrite');
+  tx.objectStore('meta').delete('workerName');
+  await new Promise((res, rej) => { tx.oncomplete = res; tx.onerror = e => rej(e.target.error); });
+}
+
+function showNameScreen() {
+  const names = [...new Set(
+    routes.filter(r => r.workerName).map(r => r.workerName)
+  )].sort();
+
+  const listEl = document.getElementById('name-list');
+  listEl.innerHTML = '';
+
+  if (!names.length) {
+    listEl.innerHTML = '<p class="name-empty">No routes available.<br>Ask your dispatcher to send routes, then tap Sync.</p>';
+  } else {
+    for (const name of names) {
+      const btn = document.createElement('button');
+      btn.className = 'name-btn';
+      btn.textContent = name;
+      btn.addEventListener('click', () => selectWorker(name));
+      listEl.appendChild(btn);
+    }
+  }
+
+  document.getElementById('screen-name').classList.remove('hidden');
+  document.getElementById('screen-routes').classList.add('hidden');
+  document.getElementById('btn-back').classList.add('hidden');
+  document.getElementById('btn-logout').classList.add('hidden');
+  document.getElementById('header-title').textContent = 'MET Routes';
+}
+
+async function selectWorker(name) {
+  await saveWorkerName(name);
+  unlockedRoutes.clear();
+  document.getElementById('screen-name').classList.add('hidden');
+  document.getElementById('screen-routes').classList.remove('hidden');
+  document.getElementById('btn-logout').classList.remove('hidden');
+  document.getElementById('header-title').textContent = name;
+  renderRouteList();
+}
+
+// ── PIN overlay (per-route unlock) ────────────────────────────────────────────
+let pendingRoute   = null;   // route waiting to be unlocked
+let unlockedRoutes = new Set(); // routeNums unlocked this session
+let pinEntry       = '';
+
+function showPinOverlay(route) {
+  pendingRoute = route;
+  pinEntry     = '';
+  updatePinDots();
+  document.getElementById('pin-error').classList.add('hidden');
+  document.getElementById('pin-route-label').textContent =
+    `${route.workerName ? route.workerName + ' · ' : ''}${route.office}`;
+  document.getElementById('pin-overlay').classList.remove('hidden');
+}
+
+function hidePinOverlay() {
+  document.getElementById('pin-overlay').classList.add('hidden');
+  pendingRoute = null;
+  pinEntry     = '';
+  updatePinDots();
+}
+
+function updatePinDots() {
+  for (let i = 0; i < 4; i++) {
+    document.getElementById(`pin-dot-${i}`).classList.toggle('filled', i < pinEntry.length);
+  }
+}
+
+function onPinKey(val) {
+  if (pinEntry.length >= 4) return;
+  pinEntry += val;
+  updatePinDots();
+  if (pinEntry.length === 4) setTimeout(submitPin, 120);
+}
+
+function onPinDelete() {
+  pinEntry = pinEntry.slice(0, -1);
+  updatePinDots();
+  document.getElementById('pin-error').classList.add('hidden');
+}
+
+function submitPin() {
+  if (!pendingRoute) return;
+  if (String(pendingRoute.pin) !== pinEntry) {
+    document.getElementById('pin-error').classList.remove('hidden');
+    const dotsEl = document.getElementById('pin-dots');
+    dotsEl.classList.add('shake');
+    setTimeout(() => dotsEl.classList.remove('shake'), 500);
+    pinEntry = '';
+    updatePinDots();
+    return;
+  }
+  unlockedRoutes.add(pendingRoute.routeNum);
+  const route = pendingRoute;
+  hidePinOverlay();
+  openRoute(route);
+}
+
+function initPinKeypad() {
+  document.querySelectorAll('.pin-key[data-val]').forEach(btn => {
+    btn.addEventListener('click', () => onPinKey(btn.dataset.val));
+  });
+  document.getElementById('pin-del').addEventListener('click', onPinDelete);
+  document.getElementById('pin-cancel').addEventListener('click', hidePinOverlay);
+}
+
 // ── Status Bar ────────────────────────────────────────────────────────────────
 let statusTimer = null;
 
@@ -149,19 +272,30 @@ async function syncRoutes() {
     const payload = JSON.parse(file.content);
     // Accept both bare array and {routes:[...]} envelope
     const incoming = Array.isArray(payload) ? payload : (payload.routes ?? []);
-    if (!incoming.length) {
-      showStatus('No routes in Gist yet.', 'warning');
-      return;
-    }
 
-    // Replace stored routes with incoming (dispatcher controls what field sees)
+    // Always replace stored routes — even if empty (dispatcher may have cleared them)
     await idbClear('routes');
     for (const route of incoming) await idbPut('routes', route);
     await idbPut('meta', new Date().toISOString(), 'lastSync');
-
     routes = incoming;
-    showStatus(`Synced — ${routes.length} route(s) loaded.`, 'success');
-    renderRouteList();
+    showStatus(routes.length
+      ? `Synced — ${routes.length} route(s) loaded.`
+      : 'No routes available — contact your dispatcher.', routes.length ? 'success' : 'warning');
+
+    // If saved worker no longer has routes, reset
+    if (selectedWorkerName && !routes.some(r => r.workerName === selectedWorkerName)) {
+      await clearWorkerName();
+    }
+
+    if (!selectedWorkerName && routes.length) {
+      showNameScreen();
+    } else {
+      document.getElementById('screen-name').classList.add('hidden');
+      document.getElementById('screen-routes').classList.remove('hidden');
+      document.getElementById('header-title').textContent = selectedWorkerName || 'MET Routes';
+      if (selectedWorkerName) document.getElementById('btn-logout').classList.remove('hidden');
+      renderRouteList();
+    }
   } catch (err) {
     const offline = !navigator.onLine || err.message.includes('Failed to fetch');
     if (offline) {
@@ -174,6 +308,16 @@ async function syncRoutes() {
 
 async function loadCachedRoutes() {
   routes = await idbGetAll('routes');
+
+  if (!selectedWorkerName && routes.length) {
+    showNameScreen();
+    return;
+  }
+
+  document.getElementById('screen-name').classList.add('hidden');
+  document.getElementById('screen-routes').classList.remove('hidden');
+  document.getElementById('header-title').textContent = selectedWorkerName || 'MET Routes';
+  if (selectedWorkerName) document.getElementById('btn-logout').classList.remove('hidden');
   renderRouteList();
 
   if (routes.length) {
@@ -204,13 +348,17 @@ function renderRouteList() {
 
   list.innerHTML = '';
 
-  if (!routes.length) {
+  const visible = selectedWorkerName
+    ? routes.filter(r => r.workerName === selectedWorkerName)
+    : routes;
+
+  if (!visible.length) {
     empty.classList.remove('hidden');
     return;
   }
   empty.classList.add('hidden');
 
-  for (const route of routes) {
+  for (const route of visible) {
     const done = (completedStops[route.routeNum] ?? new Set()).size;
     const total = route.stops.length;
     const pct = total ? (done / total) * 100 : 0;
@@ -234,6 +382,10 @@ function renderRouteList() {
 
 // ── Open / Close Route ────────────────────────────────────────────────────────
 function openRoute(route) {
+  if (route.pin && !unlockedRoutes.has(route.routeNum)) {
+    showPinOverlay(route);
+    return;
+  }
   activeRoute = route;
 
   document.getElementById('screen-routes').classList.add('hidden');
@@ -243,12 +395,14 @@ function openRoute(route) {
 
   initMap();
   renderRoute(route);
-  startLocationWatch();
+  if (watchId == null) startLocationWatch(); // start once, never stop mid-session
+  // Force Leaflet to re-measure after the screen is visible; double-fire for slow devices
+  setTimeout(() => map?.invalidateSize(), 50);
+  setTimeout(() => map?.invalidateSize(), 300);
 }
 
 function closeRoute() {
   hideStopDetail();
-  stopLocationWatch();
   clearMarkers();
   selectedStop = null;
   activeRoute = null;
@@ -256,7 +410,7 @@ function closeRoute() {
   document.getElementById('screen-route').classList.add('hidden');
   document.getElementById('screen-routes').classList.remove('hidden');
   document.getElementById('btn-back').classList.add('hidden');
-  document.getElementById('header-title').textContent = 'MET Routes';
+  document.getElementById('header-title').textContent = selectedWorkerName || 'MET Routes';
 
   // Reset split
   setMapMode(false);
@@ -393,7 +547,7 @@ function selectStop(stop) {
 function showStopDetail(stop) {
   selectedStopGroup = null;
   document.getElementById('detail-order').textContent = `Stop ${stop.readOrder}`;
-  document.getElementById('detail-name').textContent = stop.locCode ? `Meter: ${stop.locCode}` : 'No meter code';
+  document.getElementById('detail-name').textContent = stop.locCode ? `Location code: ${stop.locCode}` : 'No location code';
   document.getElementById('detail-address').textContent = `${stop.address}, ${stop.city}`;
   document.getElementById('detail-meta').textContent = '';
   document.getElementById('detail-meter-list').innerHTML = '';
@@ -416,7 +570,7 @@ function showGroupDetail(stops) {
 
   const meterList = document.getElementById('detail-meter-list');
   meterList.innerHTML = stops
-    .map(s => `<div class="meter-row">Stop ${s.readOrder} &nbsp;·&nbsp; Meter: ${s.locCode ?? '—'}</div>`)
+    .map(s => `<div class="meter-row">Stop ${s.readOrder} &nbsp;·&nbsp; Loc: ${s.locCode ?? '—'}</div>`)
     .join('') +
     `<div class="meter-hint">To pin a single meter, tap it in the list below.</div>`;
 
@@ -460,6 +614,151 @@ async function toggleDone(stop) {
   if (set.has(stop.readOrder)) set.delete(stop.readOrder); else set.add(stop.readOrder);
   await saveProgress(rn);
   renderRoute(activeRoute);
+}
+
+// ── Gist Sync Token ───────────────────────────────────────────────────────────
+async function loadGistToken() {
+  gistToken = await idbGet('meta', 'gistToken');
+}
+
+async function saveGistToken(t) {
+  gistToken = t || null;
+  if (t) await idbPut('meta', t, 'gistToken');
+}
+
+async function clearGistToken() {
+  gistToken = null;
+  const tx = db.transaction('meta', 'readwrite');
+  tx.objectStore('meta').delete('gistToken');
+  await new Promise((res, rej) => { tx.oncomplete = res; tx.onerror = e => rej(e.target.error); });
+}
+
+// Push a pinned location straight into the Gist's routes.json.
+// GETs the latest copy first and edits only the affected stops (by readOrder),
+// so simultaneous pins from other workers/routes aren't clobbered.
+async function pushPinToGist(routeNum, updatedStops) {
+  if (!gistToken) throw new Error('no-token');
+
+  const getRes = await fetch(GIST_URL, {
+    headers: { 'Authorization': `Bearer ${gistToken}`, 'Accept': 'application/vnd.github.v3+json' },
+    cache: 'no-store',
+  });
+  if (!getRes.ok) throw new Error(getRes.status === 401 ? 'bad-token' : `GET ${getRes.status}`);
+
+  const gist = await getRes.json();
+  const file = gist.files['routes.json'];
+  if (!file) throw new Error('no-file');
+
+  const parsed  = JSON.parse(file.content);
+  const isArray = Array.isArray(parsed);
+  const list    = isArray ? parsed : (parsed.routes ?? []);
+  const route   = list.find(r => r.routeNum === routeNum);
+  if (!route) throw new Error('route-missing');
+
+  for (const u of updatedStops) {
+    const rs = route.stops.find(s => s.readOrder === u.readOrder);
+    if (rs) { rs.lat = u.lat; rs.lon = u.lon; }
+  }
+
+  const content = isArray
+    ? JSON.stringify(list)
+    : JSON.stringify({ ...parsed, routes: list, lastUpdated: new Date().toISOString() });
+
+  const patchRes = await fetch(GIST_URL, {
+    method: 'PATCH',
+    headers: { 'Authorization': `Bearer ${gistToken}`,
+               'Accept': 'application/vnd.github.v3+json', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ files: { 'routes.json': { content } } }),
+  });
+  if (patchRes.status === 401 || patchRes.status === 403) throw new Error('bad-token');
+  if (!patchRes.ok) throw new Error(`PATCH ${patchRes.status}`);
+}
+
+// Verify a token can both READ and WRITE the Gist. The write check is a no-op
+// PATCH (re-saving the file's current content) — this confirms the token carries
+// the "gist" scope, which a plain GET can't tell us.
+async function testGistSync(token) {
+  const getRes = await fetch(GIST_URL, {
+    headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github.v3+json' },
+    cache: 'no-store',
+  });
+  if (!getRes.ok) throw new Error(getRes.status === 401 ? 'bad-token' : `GET ${getRes.status}`);
+
+  const gist = await getRes.json();
+  const file = gist.files['routes.json'];
+  if (!file) throw new Error('no-file');
+
+  const patchRes = await fetch(GIST_URL, {
+    method: 'PATCH',
+    headers: { 'Authorization': `Bearer ${token}`,
+               'Accept': 'application/vnd.github.v3+json', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ files: { 'routes.json': { content: file.content } } }),
+  });
+  if ([401, 403, 404].includes(patchRes.status)) throw new Error('no-write');
+  if (!patchRes.ok) throw new Error(`PATCH ${patchRes.status}`);
+}
+
+// ── Sync Settings Sheet ───────────────────────────────────────────────────────
+function openSettings() {
+  document.getElementById('settings-token').value = gistToken || '';
+  document.getElementById('settings-status').textContent = gistToken ? 'Auto-sync is on.' : '';
+  document.getElementById('settings-overlay').classList.remove('hidden');
+}
+
+function closeSettings() {
+  document.getElementById('settings-overlay').classList.add('hidden');
+}
+
+function initSettings() {
+  document.getElementById('btn-settings').addEventListener('click', openSettings);
+  document.getElementById('settings-close').addEventListener('click', closeSettings);
+
+  document.getElementById('settings-save').addEventListener('click', async () => {
+    const t = document.getElementById('settings-token').value.trim();
+    const statusEl = document.getElementById('settings-status');
+    if (!t) { statusEl.textContent = 'Enter a token, or tap Remove.'; return; }
+
+    statusEl.textContent = 'Verifying token…';
+    try {
+      const res = await fetch(GIST_URL, {
+        headers: { 'Authorization': `Bearer ${t}`, 'Accept': 'application/vnd.github.v3+json' },
+        cache: 'no-store',
+      });
+      if (!res.ok) throw new Error(res.status === 401 ? 'invalid' : String(res.status));
+      await saveGistToken(t);
+      statusEl.textContent = '✓ Saved — pinned locations now sync automatically.';
+      setTimeout(closeSettings, 1300);
+    } catch (err) {
+      statusEl.textContent = err.message === 'invalid'
+        ? 'Token rejected by GitHub — check and retry.'
+        : `Could not verify (${err.message}). Check your connection.`;
+    }
+  });
+
+  document.getElementById('settings-test').addEventListener('click', async () => {
+    const statusEl = document.getElementById('settings-status');
+    const t = document.getElementById('settings-token').value.trim() || gistToken;
+    if (!t) { statusEl.textContent = 'Enter a token first.'; return; }
+
+    statusEl.textContent = 'Testing read + write…';
+    try {
+      await testGistSync(t);
+      statusEl.textContent = '✓ Success — this token can read and write routes.';
+    } catch (err) {
+      const reasons = {
+        'bad-token': 'Token rejected by GitHub — wrong or expired.',
+        'no-write':  'Token is valid but can\'t write (missing “gist” scope).',
+        'no-file':   'Gist has no routes.json yet — ask your dispatcher to send routes.',
+      };
+      statusEl.textContent = reasons[err.message] || `Test failed (${err.message}).`;
+    }
+  });
+
+  document.getElementById('settings-clear').addEventListener('click', async () => {
+    await clearGistToken();
+    document.getElementById('settings-token').value = '';
+    document.getElementById('settings-status').textContent = 'Removed — pins will save offline for batch send.';
+  });
 }
 
 // ── Pin Location ──────────────────────────────────────────────────────────────
@@ -509,8 +808,9 @@ async function pinLocation(stop) {
     await idbPut('routes', route);
   }
 
-  // Save correction record for later batch email
-  await saveCorrection({
+  renderRoute(activeRoute);
+
+  const correctionRecord = {
     routeNum: activeRoute?.routeNum ?? '',
     office: activeRoute?.office ?? '',
     address: stopsToPin[0].address,
@@ -522,10 +822,35 @@ async function pinLocation(stop) {
     newLon,
     accuracy: acc,
     timestamp: new Date().toISOString(),
-  });
+  };
 
-  renderRoute(activeRoute);
+  // If a sync token is configured, push the correction straight to the Gist.
+  if (gistToken) {
+    btn.textContent = 'Syncing…';
+    try {
+      await pushPinToGist(
+        activeRoute?.routeNum ?? '',
+        stopsToPin.map(s => ({ readOrder: s.readOrder, lat: newLat, lon: newLon }))
+      );
+      btn.textContent = `Synced ±${acc}m`;
+      btn.disabled = false;
+      showStatus(`Location synced to dispatcher (±${acc} m).`, 'success', 3000);
+      return;
+    } catch (err) {
+      // Push failed — keep the pin as a correction so it's never lost
+      await saveCorrection(correctionRecord);
+      btn.textContent = `Saved ±${acc}m`;
+      btn.disabled = false;
+      const msg = err.message === 'bad-token'
+        ? 'Sync token rejected — check Settings (⚙).'
+        : 'Offline — saved to sync later.';
+      showStatus(`${msg} ${pendingCorrections.length} pending.`, 'warning', 4500);
+      return;
+    }
+  }
 
+  // No token configured — keep the existing batch-email correction flow
+  await saveCorrection(correctionRecord);
   btn.textContent = `Saved ±${acc}m`;
   btn.disabled = false;
   showStatus(`Correction saved. ${pendingCorrections.length} pending.`, 'success', 3000);
@@ -685,12 +1010,13 @@ function esc(str) {
 
 // ── App Init ──────────────────────────────────────────────────────────────────
 async function init() {
-  document.getElementById('version-num').textContent = `v${VERSION}`;
+  document.querySelectorAll('.version-num').forEach(el => { el.textContent = `v${VERSION}`; });
 
   db = await openDb();
   await loadProgress();
   await loadCorrections();
-  await loadCachedRoutes();
+  await loadWorkerName();
+  await loadGistToken();
 
   // Register service worker
   if ('serviceWorker' in navigator) {
@@ -718,11 +1044,22 @@ async function init() {
     if (selectedStop) pinLocation(selectedStop);
   });
 
+  document.getElementById('btn-logout').addEventListener('click', async () => {
+    await clearWorkerName();
+    unlockedRoutes.clear();
+    document.getElementById('btn-logout').classList.add('hidden');
+    showNameScreen();
+  });
+
   initViewToggle();
+  initPinKeypad();
+  initSettings();
 
   // Auto-sync on load if online and Gist is configured
   if (navigator.onLine && GIST_ID !== 'YOUR_GIST_ID_HERE') {
-    syncRoutes();
+    await syncRoutes();
+  } else {
+    await loadCachedRoutes();
   }
 }
 
