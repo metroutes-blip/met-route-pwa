@@ -1,5 +1,5 @@
 // ── Version ───────────────────────────────────────────────────────────────────
-const VERSION = '1.5.4';
+const VERSION = '1.5.5';
 
 // ── Config ────────────────────────────────────────────────────────────────────
 // Set this to the ID of the public GitHub Gist created by the Route Management

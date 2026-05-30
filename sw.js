@@ -1,5 +1,5 @@
 // ── Service Worker — MET Route Viewer ────────────────────────────────────────
-const APP_CACHE  = 'met-routes-app-v17';
+const APP_CACHE  = 'met-routes-app-v18';
 const TILE_CACHE = 'met-routes-tiles-v2';
 
 const APP_SHELL = [
@@ -9,6 +9,10 @@ const APP_SHELL = [
   './style.css',
   './manifest.json',
   './icons/icon.svg',
+  './icons/icon-192.png',
+  './icons/icon-512.png',
+  './icons/icon-192-maskable.png',
+  './icons/icon-512-maskable.png',
   'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js',
   'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
   'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
