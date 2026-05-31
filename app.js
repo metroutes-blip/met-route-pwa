@@ -1,5 +1,5 @@
 // ── Version ───────────────────────────────────────────────────────────────────
-const VERSION = '1.6.0';
+const VERSION = '1.7.1';
 
 // ── Config ────────────────────────────────────────────────────────────────────
 // Set this to the ID of the public GitHub Gist created by the Route Management
@@ -475,11 +475,11 @@ function makeMarkerIcon(count, done, selected) {
 
   if (!isMulti) {
     const cls = 'met-dot' + (done ? ' met-done' : '') + (selected ? ' met-selected' : '');
-    return L.divIcon({ className: cls, html: '', iconSize: [12, 12], iconAnchor: [6, 6] });
+    return L.divIcon({ className: cls, html: '', iconSize: [10, 10], iconAnchor: [5, 5] });
   }
 
   // Multi-meter: render as SVG image via data URI — text is guaranteed to paint
-  const sz    = 28;
+  const sz    = 24;
   const cx    = sz / 2;
   const r     = cx - 1;
   const bg    = done     ? '#27ae60' : '#c0392b';
@@ -490,7 +490,7 @@ function makeMarkerIcon(count, done, selected) {
     `<svg xmlns='http://www.w3.org/2000/svg' width='${sz}' height='${sz}'>` +
     `<circle cx='${cx}' cy='${cx}' r='${r}' fill='${bg}' stroke='${stroke}' stroke-width='2'/>` +
     `<text x='${cx}' y='${cx}' text-anchor='middle' dy='0.35em'` +
-    ` font-size='12' font-weight='bold' font-family='Arial,sans-serif' fill='white'>${label}</text>` +
+    ` font-size='10' font-weight='bold' font-family='Arial,sans-serif' fill='white'>${label}</text>` +
     `</svg>`;
 
   const url = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
@@ -638,10 +638,11 @@ async function clearGistToken() {
   await new Promise((res, rej) => { tx.oncomplete = res; tx.onerror = e => rej(e.target.error); });
 }
 
-// Push a pinned location straight into the Gist's routes.json.
+// Push a pinned location straight into the Gist's routes.json, and log it to
+// corrections.json (an inbox the dispatcher tool imports from).
 // GETs the latest copy first and edits only the affected stops (by readOrder),
 // so simultaneous pins from other workers/routes aren't clobbered.
-async function pushPinToGist(routeNum, updatedStops) {
+async function pushPinToGist(routeNum, updatedStops, correctionRecord) {
   if (!gistToken) throw new Error('no-token');
 
   const getRes = await fetch(GIST_URL, {
@@ -669,11 +670,23 @@ async function pushPinToGist(routeNum, updatedStops) {
     ? JSON.stringify(list)
     : JSON.stringify({ ...parsed, routes: list, lastUpdated: new Date().toISOString() });
 
+  // Append this pin to the corrections inbox (create the file if absent).
+  let corrections = [];
+  const corrFile = gist.files['corrections.json'];
+  if (corrFile?.content) {
+    try { const p = JSON.parse(corrFile.content); if (Array.isArray(p)) corrections = p; }
+    catch { corrections = []; }
+  }
+  if (correctionRecord) corrections.push(correctionRecord);
+
   const patchRes = await fetch(GIST_URL, {
     method: 'PATCH',
     headers: { 'Authorization': `Bearer ${gistToken}`,
                'Accept': 'application/vnd.github.v3+json', 'Content-Type': 'application/json' },
-    body: JSON.stringify({ files: { 'routes.json': { content } } }),
+    body: JSON.stringify({ files: {
+      'routes.json':      { content },
+      'corrections.json': { content: JSON.stringify(corrections) },
+    } }),
   });
   if (patchRes.status === 401 || patchRes.status === 403) throw new Error('bad-token');
   if (!patchRes.ok) throw new Error(`PATCH ${patchRes.status}`);
@@ -816,8 +829,10 @@ async function pinLocation(stop) {
   renderRoute(activeRoute);
 
   const correctionRecord = {
+    id: `${Date.now()}-${activeRoute?.routeNum ?? ''}-${stopsToPin[0].readOrder}`,
     routeNum: activeRoute?.routeNum ?? '',
     office: activeRoute?.office ?? '',
+    workerName: selectedWorkerName || '',
     address: stopsToPin[0].address,
     city: stopsToPin[0].city,
     stops: stopsToPin.map(s => ({ readOrder: s.readOrder, locCode: s.locCode ?? null })),
@@ -835,7 +850,8 @@ async function pinLocation(stop) {
     try {
       await pushPinToGist(
         activeRoute?.routeNum ?? '',
-        stopsToPin.map(s => ({ readOrder: s.readOrder, lat: newLat, lon: newLon }))
+        stopsToPin.map(s => ({ readOrder: s.readOrder, lat: newLat, lon: newLon })),
+        correctionRecord
       );
       btn.textContent = `Synced ±${acc}m`;
       btn.disabled = false;
