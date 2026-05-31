@@ -1,5 +1,5 @@
 // ── Version ───────────────────────────────────────────────────────────────────
-const VERSION = '1.8.0';
+const VERSION = '1.8.1';
 
 // ── Config ────────────────────────────────────────────────────────────────────
 // Set this to the ID of the public GitHub Gist created by the Route Management
@@ -21,6 +21,7 @@ let markers = [];        // L.Marker[] for current route
 let locationMarker = null;
 let lastKnownPos = null;   // {lat, lon} of most recent GPS fix
 let watchId = null;
+let locationWatchDesired = false;   // true once a route session starts; gates background resume
 let selectedStop = null;
 let selectedStopGroup = null;  // Array<stop> when a multi-meter marker is tapped
 let completedStops = {};    // {routeNum: Set<readOrder>}
@@ -397,7 +398,8 @@ function openRoute(route) {
   initMap();
   resetRouteOverlays();   // default to full-screen map (no list/search/menu)
   renderRoute(route);
-  if (watchId == null) startLocationWatch(); // start once, never stop mid-session
+  locationWatchDesired = true;
+  startLocationWatch();   // idempotent; paused only while the app is backgrounded
   // Force Leaflet to re-measure after the screen is visible; double-fire for slow devices
   setTimeout(() => map?.invalidateSize(), 50);
   setTimeout(() => map?.invalidateSize(), 300);
@@ -1006,11 +1008,17 @@ function initRouteControls() {
 // ── GPS Location ──────────────────────────────────────────────────────────────
 function startLocationWatch() {
   if (!navigator.geolocation) return;
+  if (watchId != null) return;   // already watching — don't stack a second watch
   watchId = navigator.geolocation.watchPosition(
     pos => updateLocation(pos.coords.latitude, pos.coords.longitude),
     () => { },
     { enableHighAccuracy: true, maximumAge: 10000, timeout: 15000 }
   );
+}
+
+// Release the GPS watch but keep the marker (used when the app is backgrounded).
+function pauseLocationWatch() {
+  if (watchId != null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
 }
 
 function stopLocationWatch() {
@@ -1053,7 +1061,8 @@ function locateUser() {
       document.getElementById('status-bar').classList.add('hidden');
       updateLocation(pos.coords.latitude, pos.coords.longitude);
       map.setView([pos.coords.latitude, pos.coords.longitude], 16);
-      if (watchId == null) startLocationWatch();
+      locationWatchDesired = true;
+      startLocationWatch();
     },
     () => {
       btn.classList.remove('locating');
@@ -1104,6 +1113,12 @@ async function init() {
       console.warn('SW registration failed:', err);
     });
   }
+
+  // Pause GPS while the app is backgrounded / screen off; resume on return.
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) pauseLocationWatch();
+    else if (locationWatchDesired) startLocationWatch();
+  });
 
   // Header buttons
   document.getElementById('btn-sync').addEventListener('click', syncRoutes);
