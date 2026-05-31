@@ -58,6 +58,15 @@
     <div id="screen-route" class="screen hidden">
       <div id="map"></div>
 
+      <!-- Menu (burger) button -->
+      <button id="btn-menu" class="map-fab" aria-label="Menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <line x1="3" y1="6" x2="21" y2="6"/>
+          <line x1="3" y1="12" x2="21" y2="12"/>
+          <line x1="3" y1="18" x2="21" y2="18"/>
+        </svg>
+      </button>
+
       <!-- Center-on-me button -->
       <button id="btn-locate" class="map-fab" aria-label="Center on my location">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
@@ -69,12 +78,28 @@
         </svg>
       </button>
 
-      <div id="stop-panel">
-        <button id="stop-panel-header" aria-label="Minimize or expand list">
-          <span class="grabber"></span>
+      <!-- Burger menu popup -->
+      <div id="map-menu" class="hidden">
+        <button id="menu-search">&#128269;&nbsp;&nbsp;Search address / meter</button>
+        <button id="menu-list">&#9776;&nbsp;&nbsp;Stop list</button>
+      </div>
+
+      <!-- Search sheet -->
+      <div id="search-sheet" class="hidden">
+        <div id="search-bar">
+          <input id="search-input" type="text" placeholder="Search address or meter #"
+                 autocomplete="off" autocapitalize="off" spellcheck="false">
+          <button id="search-close" aria-label="Close search">&#10005;</button>
+        </div>
+        <div id="search-results"></div>
+      </div>
+
+      <!-- Stop list (bottom sheet) -->
+      <div id="stop-panel" class="hidden">
+        <div id="stop-panel-header">
           <span id="stop-panel-title">Stops</span>
-          <span id="panel-chevron">&#9662;</span>
-        </button>
+          <button id="btn-close-list" aria-label="Close list">&#10005;</button>
+        </div>
         <div id="stop-list"></div>
       </div>
 

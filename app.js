@@ -1,5 +1,5 @@
 // ── Version ───────────────────────────────────────────────────────────────────
-const VERSION = '1.7.1';
+const VERSION = '1.8.0';
 
 // ── Config ────────────────────────────────────────────────────────────────────
 // Set this to the ID of the public GitHub Gist created by the Route Management
@@ -395,6 +395,7 @@ function openRoute(route) {
   document.getElementById('header-title').textContent = route.office;
 
   initMap();
+  resetRouteOverlays();   // default to full-screen map (no list/search/menu)
   renderRoute(route);
   if (watchId == null) startLocationWatch(); // start once, never stop mid-session
   // Force Leaflet to re-measure after the screen is visible; double-fire for slow devices
@@ -413,8 +414,8 @@ function closeRoute() {
   document.getElementById('btn-back').classList.add('hidden');
   document.getElementById('header-title').textContent = selectedWorkerName || 'MET Routes';
 
-  // Reset list panel to expanded for next time
-  setPanelCollapsed(false);
+  // Reset overlays for next time
+  resetRouteOverlays();
   renderRouteList();
 }
 
@@ -427,6 +428,8 @@ function initMap() {
     subdomains: 'abcd',
     maxZoom: 19,
   }).addTo(map);
+
+  map.on('click', closeMapMenu);   // dismiss the burger menu when tapping the map
 }
 
 // ── Render Route on Map + List ────────────────────────────────────────────────
@@ -552,9 +555,9 @@ function selectStop(stop) {
 function showStopDetail(stop) {
   selectedStopGroup = null;
   document.getElementById('detail-order').textContent = `Stop ${stop.readOrder}`;
-  document.getElementById('detail-name').textContent = stop.locCode ? `Location code: ${stop.locCode}` : 'No location code';
+  document.getElementById('detail-name').textContent = stop.meterNum ? `Meter: ${stop.meterNum}` : 'No meter number';
   document.getElementById('detail-address').textContent = `${stop.address}, ${stop.city}`;
-  document.getElementById('detail-meta').textContent = '';
+  document.getElementById('detail-meta').textContent = stop.locCode ? `Location code: ${stop.locCode}` : '';
   document.getElementById('detail-meter-list').innerHTML = '';
 
   const pinBtn = document.getElementById('btn-pin-location');
@@ -575,7 +578,11 @@ function showGroupDetail(stops) {
 
   const meterList = document.getElementById('detail-meter-list');
   meterList.innerHTML = stops
-    .map(s => `<div class="meter-row">Stop ${s.readOrder} &nbsp;·&nbsp; Loc: ${s.locCode ?? '—'}</div>`)
+    .map(s => {
+      const meter = s.meterNum ? `Meter: ${s.meterNum}` : 'No meter';
+      const loc   = s.locCode ? ` &nbsp;·&nbsp; Loc: ${s.locCode}` : '';
+      return `<div class="meter-row">Stop ${s.readOrder} &nbsp;·&nbsp; ${meter}${loc}</div>`;
+    })
     .join('') +
     `<div class="meter-hint">To pin a single meter, tap it in the list below.</div>`;
 
@@ -916,22 +923,84 @@ function sendAllCorrections() {
   setTimeout(clearCorrections, 1000);
 }
 
-// ── List Panel Minimize / Expand ──────────────────────────────────────────────
-function setPanelCollapsed(collapsed) {
-  const screen = document.getElementById('screen-route');
-  screen.classList.toggle('panel-collapsed', collapsed);
-  mapExpanded = collapsed;
-  setTimeout(() => map?.invalidateSize(), 260);
+// ── Burger Menu / List / Search ───────────────────────────────────────────────
+function closeMapMenu() { document.getElementById('map-menu').classList.add('hidden'); }
+function toggleMapMenu() { document.getElementById('map-menu').classList.toggle('hidden'); }
+
+function openListPanel() {
+  closeMapMenu();
+  document.getElementById('stop-panel').classList.remove('hidden');
+}
+function closeListPanel() {
+  document.getElementById('stop-panel').classList.add('hidden');
 }
 
-function togglePanel() {
-  const screen = document.getElementById('screen-route');
-  setPanelCollapsed(!screen.classList.contains('panel-collapsed'));
+function openSearch() {
+  closeMapMenu();
+  document.getElementById('search-sheet').classList.remove('hidden');
+  const input = document.getElementById('search-input');
+  input.value = '';
+  runSearch('');
+  input.focus();
+}
+function closeSearch() {
+  document.getElementById('search-sheet').classList.add('hidden');
+}
+
+function runSearch(q) {
+  const query     = q.trim().toLowerCase();
+  const resultsEl = document.getElementById('search-results');
+  resultsEl.innerHTML = '';
+  if (!activeRoute) return;
+
+  if (!query) {
+    resultsEl.innerHTML = '<div class="search-empty">Type an address or meter number.</div>';
+    return;
+  }
+
+  const matches = activeRoute.stops
+    .filter(s =>
+      (s.address  && s.address.toLowerCase().includes(query)) ||
+      (s.meterNum && String(s.meterNum).toLowerCase().includes(query)) ||
+      (s.locCode  && String(s.locCode).toLowerCase().includes(query)))
+    .sort((a, b) => a.readOrder - b.readOrder)
+    .slice(0, 40);
+
+  if (!matches.length) {
+    resultsEl.innerHTML = '<div class="search-empty">No matching stops.</div>';
+    return;
+  }
+
+  for (const stop of matches) {
+    const meter = stop.meterNum ? `Meter: ${esc(String(stop.meterNum))}` : 'No meter';
+    const loc   = stop.locCode ? ` · Loc: ${esc(String(stop.locCode))}` : '';
+    const row = document.createElement('div');
+    row.className = 'search-row';
+    row.innerHTML =
+      `<div class="search-badge">${stop.readOrder}</div>` +
+      `<div class="search-text">` +
+        `<div class="search-addr">${esc(stop.address)}, ${esc(stop.city)}</div>` +
+        `<div class="search-meter">${meter}${loc}</div>` +
+      `</div>`;
+    row.addEventListener('click', () => { closeSearch(); selectStop(stop); });
+    resultsEl.appendChild(row);
+  }
+}
+
+function resetRouteOverlays() {
+  closeMapMenu();
+  closeSearch();
+  closeListPanel();
 }
 
 function initRouteControls() {
-  document.getElementById('stop-panel-header').addEventListener('click', togglePanel);
   document.getElementById('btn-locate').addEventListener('click', locateUser);
+  document.getElementById('btn-menu').addEventListener('click', e => { e.stopPropagation(); toggleMapMenu(); });
+  document.getElementById('menu-search').addEventListener('click', openSearch);
+  document.getElementById('menu-list').addEventListener('click', openListPanel);
+  document.getElementById('btn-close-list').addEventListener('click', closeListPanel);
+  document.getElementById('search-close').addEventListener('click', closeSearch);
+  document.getElementById('search-input').addEventListener('input', e => runSearch(e.target.value));
 }
 
 // ── GPS Location ──────────────────────────────────────────────────────────────
